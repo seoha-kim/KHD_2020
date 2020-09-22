@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
 from custom_loss import F1Score
-from .efficientnet_pytorch import EfficientNet
+from efficientnet_pytorch.model import EfficientNet
 from torchvision.transforms import RandomRotation
 
 import nsml
