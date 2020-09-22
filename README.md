@@ -1,7 +1,8 @@
 # KHD_2020
 image classification for paranasal sinuses data for Naver Korea Health Datathon 2020
 
-## Sources
+
+# Sources
 - baseline : [[github]](https://github.com/KYBiMIL/KHD_2020/tree/master/pytorch)
 - Issues : [[github]](https://github.com/Korea-Health-Datathon/KHD2020)
 - QnA : [[link]](https://app.sli.do/event/th7tsarn/live/questions)
@@ -11,7 +12,7 @@ image classification for paranasal sinuses data for Naver Korea Health Datathon 
   * cbam [[blog]](https://blog.lunit.io/2018/08/30/bam-and-cbam-self-attention-modules-for-cnn/) [[github]](https://github.com/arp95/cbam_cnn_architectures_image_classification/blob/master/notebooks/resnet50_cbam.ipynb)
   * anomaly detection [[paper]](http://s-space.snu.ac.kr/handle/10371/161931)
 
-## Experiments
+# Experiments
 |NSML Session No.|Data Augmentation|Model|Checkpoint|Performance|Info|
 |:-:|:-:|:-:|:-:|:-:|:-:|
 |42|Split left/right + Resize 256 + RandomCrop 224 + Normalize with Session No. 26|Conv2d(1, 3, 3) + BN + ReLU + ResNet50 + cbam + 3 FC (1000, 1000, 128, 4)|38|0.1424815478|ratio 0.1, batch 32, Adam lr 1e-5|
