@@ -4,9 +4,8 @@ import time
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
-from custom_loss.F1Score import WeightedF1Score
+from custom_loss import F1Score
 from efficientnet_pytorch import EfficientNet
 
 import nsml
@@ -14,7 +13,7 @@ from nsml.constants import DATASET_PATH, GPU_NUM
 
 
 
-IMSIZE = 120, 60
+IMSIZE = 200, 100
 VAL_RATIO = 0.2
 RANDOM_SEED = 1234
 
@@ -39,7 +38,6 @@ def bind_model(model):
             pred = model.forward(X)
             prob, pred_cls = torch.max(pred, 1)
             pred_cls = pred_cls.tolist()
-            #pred_cls = pred_cls.data.cpu().numpy()
         print('Prediction done!\n Saving the result...')
         return pred_cls
 
@@ -47,9 +45,11 @@ def bind_model(model):
 
 
 def DataLoad(imdir):
-    impath = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(imdir) for f in files if all(s in f for s in ['.jpg'])]
+    impath = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(imdir) \
+              for f in files if all(s in f for s in ['.jpg'])]
     img = []
     lb = []
+    direction = []
     print('Loading', len(impath), 'images ...')
     for i, p in enumerate(impath):
         img_whole = cv2.imread(p, 0)
@@ -59,30 +59,48 @@ def DataLoad(imdir):
         r_img = img_whole[:, w_:2*w_]
         _, l_cls, r_cls = os.path.basename(p).split('.')[0].split('_')
         if l_cls=='0' or l_cls=='1' or l_cls=='2' or l_cls=='3':
-            img.append(l_img);      lb.append(int(l_cls))
+            img.append(l_img); lb.append(int(l_cls)); direction.append('l')
         if r_cls=='0' or r_cls=='1' or r_cls=='2' or r_cls=='3':
-            img.append(r_img);      lb.append(int(r_cls))
+            img.append(r_img); lb.append(int(r_cls)); direction.append('r')
     print(len(img), 'data with label 0-3 loaded!')
-    return img, lb
+    return img, lb, direction
 
+def ImagePreprocessing(img, direction):
+        # clahe
+        print('Applying clahe ...')
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
+        for i, im, in enumerate(img):
+            img = clahe.apply(img)
 
-def ImagePreprocessing(img):
-    # 자유롭게 작성
-    h, w = IMSIZE
-    print('Preprocessing ...')
-    for i, im, in enumerate(img):
-        tmp = cv2.resize(im, dsize=(w, h), interpolation=cv2.INTER_AREA)
-        tmp = tmp / 255.
-        img[i] = tmp
-    print(len(img), 'images processed!')
-    return img
+        # crop
+        print('Cropping ...')
+        for i, im in enumerate(img):
+            h, w = im.shape[:2]
+            h_, w_ = h//3, w//2
+            l_r = direction[i]
+            if l_r == 'l':
+                tmp = img[h_:h_*2, w_:]
+                img[i] = tmp
+            if l_r == 'r':
+                tmp = img[h_:h_*2, :w_]
+                img[i] = tmp
 
+        # resize
+        h, w = IMSIZE
+        print('Resizing ...')
+        for i, im in enumerate(img):
+            tmp = cv2.resize(im, dsize=(w, h), interpolation=cv2.INTER_AREA)
+            tmp = tmp / 255.
+            img[i] = tmp
+        print(len(img), 'images processed!')
+        return img
 
 def ParserArguments(args):
-    # Setting Hyperparameters
+    # Setting Hyper parameters
     args.add_argument('--epoch', type=int, default=10)          # epoch 수 설정
     args.add_argument('--batch_size', type=int, default=8)      # batch size 설정
-    args.add_argument('--learning_rate', type=float, default=1e-5)  # learning rate 설정
+    args.add_argument('--learning_rate', type=float, default=0.001)  # learning rate 설정
+    args.add_argument('--learning-rate-decay', type=float, default=0.9) # learning rate decay 설
     args.add_argument('--num_classes', type=int, default=4)     # 분류될 클래스 수는 4개
 
     # DO NOT CHANGE (for nsml)
@@ -92,45 +110,21 @@ def ParserArguments(args):
     args.add_argument('--pause', type=int, default=0, help='model 을 load 할때 1로 설정됩니다.')
 
     config = args.parse_args()
-    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.pause, config.mode
+    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.learning_rate_decay, \
+           config.pause, config.mode
 
-"""
-class SampleModelTorch(nn.Module):
-    def __init__(self, num_classes=4):
-        super(SampleModelTorch, self).__init__()
-        self.layer1 = nn.Sequential(nn.Conv2d(1, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
-                                    nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64),  nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=2, stride=2))
-        self.layer2 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
-                                    nn.Conv2d(128, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=2, stride=2))
-        self.layer3 = nn.Sequential(nn.Conv2d(128, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU(),
-                                    nn.Conv2d(256, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU())
-        self.fc = nn.Sequential(nn.Linear(256 * 30 * 15, 2048),
-                                nn.Linear(2048, 128),
-                                nn.Linear(128, num_classes))
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = x.reshape(x.size(0), -1)
-        x = self.fc(x)
-        return x
-"""
+
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
     print(GPU_NUM)
-    nb_epoch, batch_size, num_classes, learning_rate, ifpause, ifmode = ParserArguments(args)
-
+    nb_epoch, batch_size, num_classes, learning_rate, learning_rate_decay, ifpause, ifmode = ParserArguments(args)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     #####   Model   #####
     model = EfficientNet.from_pretrained('efficientnet-b7', num_classes=4)
     model.to(device)
-    criterion = WeightedF1Score()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=learning_rate_decay)
     bind_model(model)
 
     if ifpause:  ## for test mode
@@ -139,9 +133,8 @@ if __name__ == '__main__':
 
     if ifmode == 'train':  ## for train mode
         print('Training start ...')
-        # 자유롭게 작성
-        images, labels = DataLoad(imdir=os.path.join(DATASET_PATH, 'train'))
-        images = ImagePreprocessing(images)
+        images, labels, direction = DataLoad(imdir=os.path.join(DATASET_PATH, 'train'))
+        images = ImagePreprocessing(images, direction)
         images = np.array(images)
         images = np.expand_dims(images, axis=1)
         labels = np.array(labels)
@@ -166,7 +159,7 @@ if __name__ == '__main__':
                 x_tr, y_tr = x_tr.to(device), y_tr.to(device)
                 optimizer.zero_grad()
                 pred = model(x_tr)
-                loss = WeightedF1Score(y_tr, pred, num_classes)
+                loss = F1Score(y_tr, pred, num_classes).WeightedF1Score()
                 loss.backward()
                 optimizer.step()
                 prob, pred_cls = torch.max(pred, 1)
@@ -177,7 +170,7 @@ if __name__ == '__main__':
                 for j, (x_val, y_val) in enumerate(batch_val):
                     x_val, y_val = x_val.to(device), y_val.to(device)
                     pred_val = model(x_val)
-                    loss_val = WeightedF1Score(y_val, pred_val, num_classes)
+                    loss_val = F1Score(y_val, pred_val, num_classes).WeightedF1Score()
                     prob_val, pred_cls_val = torch.max(pred_val, 1)
                     a_val += y_val.size(0)
                     tp_val += (pred_cls_val == y_val).sum().item()
