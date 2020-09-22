@@ -6,16 +6,18 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
 from custom_loss import F1Score
-from efficientnet_pytorch import EfficientNet
+from .efficientnet_pytorch import EfficientNet
+from torchvision.transforms import RandomRotation
 
 import nsml
 from nsml.constants import DATASET_PATH, GPU_NUM
 
 
 
-IMSIZE = 200, 100
+IMSIZE = 150, 150
 VAL_RATIO = 0.2
 RANDOM_SEED = 1234
+np.random.seed(RANDOM_SEED)
 
 def bind_model(model):
     def save(dir_name):
@@ -29,7 +31,7 @@ def bind_model(model):
         print('model loaded!')
 
     def infer(data):  ## test mode
-        X = ImagePreprocessing(data)
+        X = ImagePreprocessing_Test(data)
         X = np.array(X)
         X = np.expand_dims(X, axis=1)
         ##### DO NOT CHANGE ORDER OF TEST DATA #####
@@ -49,7 +51,6 @@ def DataLoad(imdir):
               for f in files if all(s in f for s in ['.jpg'])]
     img = []
     lb = []
-    direction = []
     print('Loading', len(impath), 'images ...')
     for i, p in enumerate(impath):
         img_whole = cv2.imread(p, 0)
@@ -59,41 +60,80 @@ def DataLoad(imdir):
         r_img = img_whole[:, w_:2*w_]
         _, l_cls, r_cls = os.path.basename(p).split('.')[0].split('_')
         if l_cls=='0' or l_cls=='1' or l_cls=='2' or l_cls=='3':
-            img.append(l_img); lb.append(int(l_cls)); direction.append('l')
+            img.append(l_img); lb.append(int(l_cls));
         if r_cls=='0' or r_cls=='1' or r_cls=='2' or r_cls=='3':
-            img.append(r_img); lb.append(int(r_cls)); direction.append('r')
+            img.append(r_img); lb.append(int(r_cls));
     print(len(img), 'data with label 0-3 loaded!')
-    return img, lb, direction
+    return img, lb
 
-def ImagePreprocessing(img, direction):
+def ImagePreprocessing_Test(imgs):
+    # clahe
+    print('Applying clahe ...')
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
+    for i, im, in enumerate(imgs):
+        imgs = clahe.apply(imgs)
+
+    # crop
+    print('Cropping ...')
+    for i, im in enumerate(imgs):
+        h, w = im.shape[:2]
+        h_ = h // 3
+        tmp = imgs[h_:h_ * 2, :]
+        imgs[i] = tmp
+
+    # resize
+    h, w = IMSIZE
+    print('Resizing ...')
+    for i, im in enumerate(imgs):
+        tmp = cv2.resize(im, dsize=(w, h), interpolation=cv2.INTER_AREA)
+        tmp = tmp / 255.
+        imgs[i] = tmp
+
+    print(len(imgs), 'images processed!')
+    return imgs
+
+
+def ImagePreprocessing_Train(imgs, labels):
         # clahe
         print('Applying clahe ...')
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
-        for i, im, in enumerate(img):
-            img = clahe.apply(img)
+        for i, im, in enumerate(imgs):
+            imgs = clahe.apply(imgs)
 
         # crop
         print('Cropping ...')
-        for i, im in enumerate(img):
+        for i, im in enumerate(imgs):
             h, w = im.shape[:2]
-            h_, w_ = h//3, w//2
-            l_r = direction[i]
-            if l_r == 'l':
-                tmp = img[h_:h_*2, w_:]
-                img[i] = tmp
-            if l_r == 'r':
-                tmp = img[h_:h_*2, :w_]
-                img[i] = tmp
+            h_ = h//3
+            tmp = imgs[h_:h_*2, :]
+            imgs[i] = tmp
 
         # resize
         h, w = IMSIZE
         print('Resizing ...')
-        for i, im in enumerate(img):
+        for i, im in enumerate(imgs):
             tmp = cv2.resize(im, dsize=(w, h), interpolation=cv2.INTER_AREA)
             tmp = tmp / 255.
-            img[i] = tmp
-        print(len(img), 'images processed!')
-        return img
+            imgs[i] = tmp
+
+        # random rotation
+        print('Rotating train images ...')
+        for i, im in enumerate(imgs):
+            tmp_label = labels[i]
+            if tmp_label == 1 or tmp_label == 2 or tmp_label == 3:
+                rotator = RandomRotation((-10, 10), expand=False)
+                tmp_img = rotator(im)
+                imgs.append(tmp_img)
+                labels.append(tmp_label)
+
+        # Shuffle
+        print('Shuffling train images ...')
+        combine = list(zip(imgs, labels))
+        np.random.shuffle(combine)
+        imgs, labels = zip(*combine)
+
+        print(len(imgs), 'images processed!')
+        return imgs, labels
 
 def ParserArguments(args):
     # Setting Hyper parameters
@@ -133,8 +173,8 @@ if __name__ == '__main__':
 
     if ifmode == 'train':  ## for train mode
         print('Training start ...')
-        images, labels, direction = DataLoad(imdir=os.path.join(DATASET_PATH, 'train'))
-        images = ImagePreprocessing(images, direction)
+        images, labels = DataLoad(imdir=os.path.join(DATASET_PATH, 'train'))
+        images, labels = ImagePreprocessing_Train(images, labels)
         images = np.array(images)
         images = np.expand_dims(images, axis=1)
         labels = np.array(labels)

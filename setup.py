@@ -7,5 +7,5 @@ print('setup_test.py is running...')
 
 setup(name='PNS_SAMPLE',
       version='1.0',
-      install_requires=['opencv-python','scikit-learn', 'efficientnet_pytorch']
+      install_requires=['opencv-python']
       )
