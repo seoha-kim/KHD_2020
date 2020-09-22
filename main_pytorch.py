@@ -1,15 +1,13 @@
 import os, sys
 import argparse
 import time
-import random
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-#import torchvision
-#import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
 from custom_loss.F1Score import WeightedF1Score
+from efficientnet_pytorch import EfficientNet
 
 import nsml
 from nsml.constants import DATASET_PATH, GPU_NUM
@@ -96,7 +94,7 @@ def ParserArguments(args):
     config = args.parse_args()
     return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.pause, config.mode
 
-
+"""
 class SampleModelTorch(nn.Module):
     def __init__(self, num_classes=4):
         super(SampleModelTorch, self).__init__()
@@ -118,18 +116,7 @@ class SampleModelTorch(nn.Module):
         x = x.reshape(x.size(0), -1)
         x = self.fc(x)
         return x
-
-'''
-class PNSDataset(Dataset):
-    def __init(self, x, y):
-        self.len = x.shape[0]
-        self.x_data = torch.from_numpy(x)
-        self.y_data = torch.from_numpy(y)
-    def __getitem__(self, index):
-        return self.x_data[index], self.y_data[index]
-    def __len__(self):
-        return self.len
-'''
+"""
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
@@ -139,12 +126,10 @@ if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     #####   Model   #####
-    model = SampleModelTorch(num_classes)
-    #model.double()
+    model = EfficientNet.from_pretrained('efficientnet-b7', num_classes=4)
     model.to(device)
     criterion = WeightedF1Score()
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    #optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     bind_model(model)
 
