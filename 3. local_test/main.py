@@ -112,7 +112,7 @@ if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     #####   Model   #####
-    model = EfficientNet.from_pretrained('efficientnet-b1', num_classes=4)
+    model = EfficientNet.from_pretrained('dd-b1', num_classes=4)
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=learning_rate_decay)
     bind_model(model)

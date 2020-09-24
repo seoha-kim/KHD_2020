@@ -24,12 +24,12 @@ from .utils import (
 
 
 VALID_MODELS = (
-    'efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3',
-    'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7',
-    'efficientnet-b8',
+    'dd-b0', 'dd-b1', 'dd-b2', 'dd-b3',
+    'dd-b4', 'dd-b5', 'dd-b6', 'dd-b7',
+    'dd-b8',
 
-    # Support the construction of 'efficientnet-l2' without pretrained weights
-    'efficientnet-l2'
+    # Support the construction of 'dd-l2' without pretrained weights
+    'dd-l2'
 )
 
 
@@ -260,7 +260,7 @@ class EfficientNet(nn.Module):
 
         Returns:
             Output of the final convolution
-            layer in the efficientnet model.
+            layer in the dd model.
         """
         # Stem
         x = self._swish(self._bn0(self._conv_stem(inputs)))
@@ -299,10 +299,10 @@ class EfficientNet(nn.Module):
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
-        """create an efficientnet model according to name.
+        """create an dd model according to name.
 
         Args:
-            model_name (str): Name for efficientnet.
+            model_name (str): Name for dd.
             in_channels (int): Input data's channel number.
             override_params (other key word params):
                 Params to override model's global_params.
@@ -314,7 +314,7 @@ class EfficientNet(nn.Module):
                     'depth_divisor', 'min_depth'
 
         Returns:
-            An efficientnet model.
+            An dd model.
         """
         cls._check_model_name_is_valid(model_name)
         blocks_args, global_params = get_model_params(model_name, override_params)
@@ -325,10 +325,10 @@ class EfficientNet(nn.Module):
     @classmethod
     def from_pretrained(cls, model_name, weights_path=None, advprop=False,
                         in_channels=3, num_classes=1000, **override_params):
-        """create an efficientnet model according to name.
+        """create an dd model according to name.
 
         Args:
-            model_name (str): Name for efficientnet.
+            model_name (str): Name for dd.
             weights_path (None or str):
                 str: path to pretrained weights file on the local disk.
                 None: use pretrained weights downloaded from the Internet.
@@ -349,7 +349,7 @@ class EfficientNet(nn.Module):
                     'depth_divisor', 'min_depth'
 
         Returns:
-            A pretrained efficientnet model.
+            A pretrained dd model.
         """
         model = cls.from_name(model_name, num_classes=num_classes, **override_params)
         load_pretrained_weights(model, model_name, weights_path=weights_path, load_fc=(num_classes == 1000), advprop=advprop)
@@ -358,10 +358,10 @@ class EfficientNet(nn.Module):
 
     @classmethod
     def get_image_size(cls, model_name):
-        """Get the input image size for a given efficientnet model.
+        """Get the input image size for a given dd model.
 
         Args:
-            model_name (str): Name for efficientnet.
+            model_name (str): Name for dd.
 
         Returns:
             Input image size (resolution).
@@ -375,7 +375,7 @@ class EfficientNet(nn.Module):
         """Validates model name.
 
         Args:
-            model_name (str): Name for efficientnet.
+            model_name (str): Name for dd.
 
         Returns:
             bool: Is a valid name or not.

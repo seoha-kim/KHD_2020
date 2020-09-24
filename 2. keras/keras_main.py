@@ -4,21 +4,14 @@ import time
 import random
 import cv2
 import numpy as np
-import keras
 
-from keras.utils import np_utils
-#from sklearn.model_selection import train_test_split
-from keras.models import Sequential
+from keras import applications
 from keras.layers import Dense, Dropout
-from keras.layers import Conv2D, MaxPooling2D, Flatten, GlobalAveragePooling2D
-from keras.layers import BatchNormalization, ReLU
-from keras.preprocessing.image import ImageDataGenerator
+from keras.layers import GlobalAveragePooling2D
 from keras import optimizers
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-from keras.utils.training_utils import multi_gpu_model
-import keras.backend.tensorflow_backend as K
 
-from f1score.F1Score import WeightedF1Score
+from f1score import WeightedF1Score
 import efficientnet.keras as efn
 
 import nsml
