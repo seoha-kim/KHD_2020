@@ -1,24 +1,20 @@
-import os, sys
+import os
 import argparse
 import time
-import random
 import cv2
 import numpy as np
-import torch
-import torch.nn as nn
-#import torchvision
-#import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
-from efficientnet_pytorch import EfficientNet
+from keras.f1score import *
+from pytorch.efficientnet_pytorch import EfficientNet
 
 import nsml
 # from nsml.constants import DATASET_PATH, GPU_NUM
 
-GPU_NUM = 0
-DATASET_PATH = './sample_data'
-IMSIZE = 120, 60
+DATASET_PATH = './sample_image/'
+IMSIZE = 224, 224
 VAL_RATIO = 0.2
 RANDOM_SEED = 1234
+
 
 def bind_model(model):
     def save(dir_name):
@@ -41,7 +37,6 @@ def bind_model(model):
             pred = model.forward(X)
             prob, pred_cls = torch.max(pred, 1)
             pred_cls = pred_cls.tolist()
-            #pred_cls = pred_cls.data.cpu().numpy()
         print('Prediction done!\n Saving the result...')
         return pred_cls
 
@@ -49,7 +44,8 @@ def bind_model(model):
 
 
 def DataLoad(imdir):
-    impath = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(imdir) for f in files if all(s in f for s in ['.jpg'])]
+    impath = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(imdir) \
+              for f in files if all(s in f for s in ['.jpg'])]
     img = []
     lb = []
     print('Loading', len(impath), 'images ...')
@@ -57,34 +53,44 @@ def DataLoad(imdir):
         img_whole = cv2.imread(p, 0)
         h, w = img_whole.shape
         h_, w_ = h, w//2
-        l_img = img_whole[:, w_:2*w_]
+        l_img = img_whole[:, w_:2 * w_]
         r_img = img_whole[:, :w_]
         _, l_cls, r_cls = os.path.basename(p).split('.')[0].split('_')
         if l_cls=='0' or l_cls=='1' or l_cls=='2' or l_cls=='3':
-            img.append(l_img);      lb.append(int(l_cls))
+            img.append(l_img); lb.append(int(l_cls))
         if r_cls=='0' or r_cls=='1' or r_cls=='2' or r_cls=='3':
-            img.append(r_img);      lb.append(int(r_cls))
+            img.append(r_img); lb.append(int(r_cls))
     print(len(img), 'data with label 0-3 loaded!')
     return img, lb
 
 
-def ImagePreprocessing(img):
-    # 자유롭게 작성
-    h, w = IMSIZE
+def ImagePreprocessing(imgs):
     print('Preprocessing ...')
-    for i, im, in enumerate(img):
-        tmp = cv2.resize(im, dsize=(w, h), interpolation=cv2.INTER_AREA)
-        tmp = tmp / 255.
-        img[i] = tmp
-    print(len(img), 'images processed!')
-    return img
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
+    for i, im, in enumerate(imgs):
+        # Applying clahe
+        tmp = clahe.apply(im)
+        tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2RGB)
 
+        # Cropping
+        h, w = tmp.shape[:2]
+        h_ = h // 3
+        tmp = tmp[h_:h_ * 2, :]
+
+        # Resizing
+        tmp = cv2.resize(tmp, dsize=(IMSIZE[1], IMSIZE[0]), interpolation=cv2.INTER_AREA)
+        tmp = tmp / 255.
+        imgs[i] = tmp
+
+    print(len(imgs), 'images processed!')
+    return imgs
 
 def ParserArguments(args):
-    # Setting Hyperparameters
-    args.add_argument('--epoch', type=int, default=10)          # epoch 수 설정
+    # Setting Hyper parameters
+    args.add_argument('--epoch', type=int, default=100)          # epoch 수 설정
     args.add_argument('--batch_size', type=int, default=8)      # batch size 설정
-    args.add_argument('--learning_rate', type=float, default=1e-5)  # learning rate 설정
+    args.add_argument('--learning_rate', type=float, default=0.001)  # learning rate 설정
+    args.add_argument('--learning-rate-decay', type=float, default=0.9) # learning rate decay 설
     args.add_argument('--num_classes', type=int, default=4)     # 분류될 클래스 수는 4개
 
     # DO NOT CHANGE (for nsml)
@@ -94,21 +100,21 @@ def ParserArguments(args):
     args.add_argument('--pause', type=int, default=0, help='model 을 load 할때 1로 설정됩니다.')
 
     config = args.parse_args()
-    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.pause, config.mode
+    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.learning_rate_decay, \
+           config.pause, config.mode
+
+
 
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
-    nb_epoch, batch_size, num_classes, learning_rate, ifpause, ifmode = ParserArguments(args)
-
+    nb_epoch, batch_size, num_classes, learning_rate, learning_rate_decay, ifpause, ifmode = ParserArguments(args)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     #####   Model   #####
-    model = EfficientNet.from_pretrained('efficientnet-b7', num_classes=4)
+    model = EfficientNet.from_pretrained('efficientnet-b1', num_classes=4)
     model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=learning_rate_decay)
     bind_model(model)
 
     if ifpause:  ## for test mode
@@ -117,22 +123,28 @@ if __name__ == '__main__':
 
     if ifmode == 'train':  ## for train mode
         print('Training start ...')
-        # 자유롭게 작성
         images, labels = DataLoad(imdir=os.path.join(DATASET_PATH, 'train'))
-        images = ImagePreprocessing(images)
+        images, labels = ImagePreprocessing(images, labels)
         images = np.array(images)
-        images = np.expand_dims(images, axis=1)
+        images = np.transpose(images, (0,3,1,2))
         labels = np.array(labels)
+
 
         dataset = TensorDataset(torch.from_numpy(images).float(), torch.from_numpy(labels).long())
         subset_size = [len(images) - int(len(images) * VAL_RATIO),int(len(images) * VAL_RATIO)]
         tr_set, val_set = random_split(dataset, subset_size)
+        transformed_tr_set = Dataset()
         batch_train = DataLoader(tr_set, batch_size=batch_size, shuffle=True)
         batch_val = DataLoader(val_set, batch_size=1, shuffle=False)
 
+        _, ratio = np.unique(labels, return_counts=True)
+        normed_weights = [1 - (x / sum(ratio)) for x in ratio]
+        normed_weights = torch.FloatTensor(normed_weights).to(device)
+        criterion = nn.CrossEntropyLoss(weight=normed_weights)
+
         #####   Training loop   #####
         STEP_SIZE_TRAIN = len(images) // batch_size
-        print('\n\n STEP_SIZE_TRAIN= {}\n\n'.format(STEP_SIZE_TRAIN))
+        print('\n\nSTEP_SIZE_TRAIN= {}\n\n'.format(STEP_SIZE_TRAIN))
         t0 = time.time()
         for epoch in range(nb_epoch):
             t1 = time.time()

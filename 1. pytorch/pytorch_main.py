@@ -1,19 +1,17 @@
-import os, sys
+import os
 import argparse
 import time
 import cv2
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
-from f1score import *
-from efficientnet_pytorch import EfficientNet
+from torch.utils.data import Dataset, DataLoader
+from keras.f1score import *
+from pytorch.efficientnet_pytorch import EfficientNet
 import torchvision.transforms as transforms
-from PIL import Image
 
 import nsml
-# from nsml.constants import DATASET_PATH, GPU_NUM
+from nsml.constants import DATASET_PATH, GPU_NUM
 
-DATASET_PATH = './sample_image/'
+
 IMSIZE = 224, 224
 VAL_RATIO = 0.2
 RANDOM_SEED = 1234
@@ -114,28 +112,11 @@ class PNSDataset(Dataset):
 
 def ImagePreprocessing(imgs):
         print('Preprocessing ...')
-
-        print('Resizing original img ...')
-        resize_img = imgs.copy()
-        for i, im, in enumerate(imgs):
-            tmp = im.copy()
-
-            # Cropping
-            h, w = tmp.shape[:2]
-            h_ = h//3
-            tmp = tmp[h_:h_*2, :]
-
-            # Resizing
-            tmp = cv2.resize(tmp, dsize=(IMSIZE[1], IMSIZE[0]), interpolation=cv2.INTER_AREA)
-            tmp = tmp / 255.
-            resize_img[i] = tmp
-
-        print('Applying clahe ...')
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
-        clahe_img = imgs.copy()
         for i, im, in enumerate(imgs):
             # Applying clahe
             tmp = clahe.apply(im)
+            tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2RGB)
 
             # Cropping
             h, w = tmp.shape[:2]
@@ -145,25 +126,17 @@ def ImagePreprocessing(imgs):
             # Resizing
             tmp = cv2.resize(tmp, dsize=(IMSIZE[1], IMSIZE[0]), interpolation=cv2.INTER_AREA)
             tmp = tmp / 255.
-            clahe_img[i] = tmp
+            imgs[i] = tmp
 
-        # 3채널 쌓기
-        final_img = imgs.copy()
-        for i, im in enumerate(final_img):
-            tmp = np.concatenate([np.reshape(clahe_img[i], (IMSIZE[0], IMSIZE[1], 1)),
-                                        np.reshape(clahe_img[i], (IMSIZE[0], IMSIZE[1], 1)),
-                                        np.reshape(clahe_img[i], (IMSIZE[0], IMSIZE[1], 1))], axis=-1)
-            final_img[i] = tmp
-
-        print(len(final_img), 'images processed!')
-        return final_img
+        print(len(imgs), 'images processed!')
+        return imgs
 
 
 def ParserArguments(args):
     # Setting Hyper parameters
     args.add_argument('--epoch', type=int, default=100)          # epoch 수 설정
     args.add_argument('--batch_size', type=int, default=8)      # batch size 설정
-    args.add_argument('--learning_rate', type=float, default=1e-4)  # learning rate 설정
+    args.add_argument('--learning_rate', type=float, default=0.01)  # learning rate 설정
     args.add_argument('--learning-rate-decay', type=float, default=0.1) # learning rate decay 설
     args.add_argument('--num_classes', type=int, default=4)     # 분류될 클래스 수는 4개
 
@@ -182,13 +155,13 @@ def ParserArguments(args):
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
+    print(GPU_NUM)
     nb_epoch, batch_size, num_classes, learning_rate, learning_rate_decay, ifpause, ifmode = ParserArguments(args)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     #####   Model   #####
     model = EfficientNet.from_pretrained('efficientnet-b1', num_classes=4)
     model.to(device)
-    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=learning_rate_decay)
     bind_model(model)
 
@@ -228,7 +201,7 @@ if __name__ == '__main__':
         X_train, y_train, X_test, y_test = shuffle_split_data(images, labels)
         print('X_train: {} / X_val: {} / y_train: {} / y_val: {}'.format(X_train.shape, X_test.shape, y_train.shape, y_test.shape))
         # 1 - 6배 / 2 - 12배 / 3 - 20배
-        for (num, increase) in [(0, 1),(1, 7),(2, 17),(3, 28)]:
+        for (num, increase) in [(0, 1),(1, 2),(2, 4),(3, 6)]:
             X_num = X_train[np.where(y_train == num)]
             y_num = y_train[np.where(y_train == num)]
             X_nums = np.tile(X_num, (increase,1,1,1))
@@ -251,6 +224,10 @@ if __name__ == '__main__':
         val_set = PNSDataset(X_test, y_test, transform=image_transforms['val'])
         batch_train = DataLoader(tr_set, batch_size=batch_size, shuffle=True)
         batch_val = DataLoader(val_set, batch_size=1, shuffle=False)
+
+        weights = [0.32, 1.92, 4.17, 8.33]
+        class_weights = torch.FloatTensor(weights).cuda()
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
 
 
         #####   Training loop   #####
