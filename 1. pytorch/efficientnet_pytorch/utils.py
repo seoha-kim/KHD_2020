@@ -348,8 +348,8 @@ class MaxPool2dStaticSamePadding(nn.MaxPool2d):
 
 # BlockDecoder: A Class for encoding and decoding BlockArgs
 # efficientnet_params: A function to query compound coefficient
-# get_model_params and dd:
-#     Functions to get BlockArgs and GlobalParams for dd
+# get_model_params and efficientnet:
+#     Functions to get BlockArgs and GlobalParams for efficientnet
 # url_map and url_map_advprop: Dicts of url_map for pretrained weights
 # load_pretrained_weights: A function to load pretrained weights
 
@@ -460,23 +460,23 @@ def efficientnet_params(model_name):
     """
     params_dict = {
         # Coefficients:   width,depth,res,dropout
-        'dd-b0': (1.0, 1.0, 224, 0.2),
-        'dd-b1': (1.0, 1.1, 240, 0.2),
-        'dd-b2': (1.1, 1.2, 260, 0.3),
-        'dd-b3': (1.2, 1.4, 300, 0.3),
-        'dd-b4': (1.4, 1.8, 380, 0.4),
-        'dd-b5': (1.6, 2.2, 456, 0.4),
-        'dd-b6': (1.8, 2.6, 528, 0.5),
-        'dd-b7': (2.0, 3.1, 600, 0.5),
-        'dd-b8': (2.2, 3.6, 672, 0.5),
-        'dd-l2': (4.3, 5.3, 800, 0.5),
+        'efficientnet-b0': (1.0, 1.0, 224, 0.2),
+        'efficientnet-b1': (1.0, 1.1, 240, 0.2),
+        'efficientnet-b2': (1.1, 1.2, 260, 0.3),
+        'efficientnet-b3': (1.2, 1.4, 300, 0.3),
+        'efficientnet-b4': (1.4, 1.8, 380, 0.4),
+        'efficientnet-b5': (1.6, 2.2, 456, 0.4),
+        'efficientnet-b6': (1.8, 2.6, 528, 0.5),
+        'efficientnet-b7': (2.0, 3.1, 600, 0.5),
+        'efficientnet-b8': (2.2, 3.6, 672, 0.5),
+        'efficientnet-l2': (4.3, 5.3, 800, 0.5),
     }
     return params_dict[model_name]
 
 
 def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None,
                  dropout_rate=0.2, drop_connect_rate=0.2, num_classes=1000, include_top=True):
-    """Create BlockArgs and GlobalParams for dd model.
+    """Create BlockArgs and GlobalParams for efficientnet model.
 
     Args:
         width_coefficient (float)
@@ -492,7 +492,7 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
         blocks_args, global_params.
     """
 
-    # Blocks args for the whole model(dd-b0 by default)
+    # Blocks args for the whole model(efficientnet-b0 by default)
     # It will be modified in the construction of EfficientNet Class according to model
     blocks_args = [
         'r1_k3_s11_e1_i32_o16_se0.25',
@@ -533,7 +533,7 @@ def get_model_params(model_name, override_params):
     Returns:
         blocks_args, global_params
     """
-    if model_name.startswith('dd'):
+    if model_name.startswith('efficientnet'):
         w, d, s, p = efficientnet_params(model_name)
         # note: all models have drop connect rate = 0.2
         blocks_args, global_params = efficientnet(
@@ -549,39 +549,39 @@ def get_model_params(model_name, override_params):
 # train with Standard methods
 # check more details in paper(EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks)
 url_map = {
-    'dd-b0': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b0-355c32eb.pth',
-    'dd-b1': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b1-f1951068.pth',
-    'dd-b2': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b2-8bb594d6.pth',
-    'dd-b3': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b3-5fb5a3c3.pth',
-    'dd-b4': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b4-6ed6700e.pth',
-    'dd-b5': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b5-b6417697.pth',
-    'dd-b6': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b6-c76e70fd.pth',
-    'dd-b7': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b7-dcc49843.pth',
+    'efficientnet-b0': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b0-355c32eb.pth',
+    'efficientnet-b1': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b1-f1951068.pth',
+    'efficientnet-b2': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b2-8bb594d6.pth',
+    'efficientnet-b3': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b3-5fb5a3c3.pth',
+    'efficientnet-b4': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b4-6ed6700e.pth',
+    'efficientnet-b5': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b5-b6417697.pth',
+    'efficientnet-b6': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b6-c76e70fd.pth',
+    'efficientnet-b7': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b7-dcc49843.pth',
 }
 
 # train with Adversarial Examples(AdvProp)
 # check more details in paper(Adversarial Examples Improve Image Recognition)
 url_map_advprop = {
-    'dd-b0': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b0-b64d5a18.pth',
-    'dd-b1': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b1-0f3ce85a.pth',
-    'dd-b2': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b2-6e9d97e5.pth',
-    'dd-b3': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b3-cdd7c0f4.pth',
-    'dd-b4': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b4-44fb3a87.pth',
-    'dd-b5': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b5-86493f6b.pth',
-    'dd-b6': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b6-ac80338e.pth',
-    'dd-b7': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b7-4652b6dd.pth',
-    'dd-b8': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b8-22a8fe65.pth',
+    'efficientnet-b0': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b0-b64d5a18.pth',
+    'efficientnet-b1': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b1-0f3ce85a.pth',
+    'efficientnet-b2': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b2-6e9d97e5.pth',
+    'efficientnet-b3': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b3-cdd7c0f4.pth',
+    'efficientnet-b4': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b4-44fb3a87.pth',
+    'efficientnet-b5': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b5-86493f6b.pth',
+    'efficientnet-b6': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b6-ac80338e.pth',
+    'efficientnet-b7': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b7-4652b6dd.pth',
+    'efficientnet-b8': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/adv-efficientnet-b8-22a8fe65.pth',
 }
 
-# TODO: add the petrained weights url map of 'dd-l2'
+# TODO: add the petrained weights url map of 'efficientnet-l2'
 
 
 def load_pretrained_weights(model, model_name, weights_path=None, load_fc=True, advprop=False):
     """Loads pretrained weights from weights path or download using url.
 
     Args:
-        model (Module): The whole model of dd.
-        model_name (str): Model name of dd.
+        model (Module): The whole model of efficientnet.
+        model_name (str): Model name of efficientnet.
         weights_path (None or str):
             str: path to pretrained weights file on the local disk.
             None: use pretrained weights downloaded from the Internet.

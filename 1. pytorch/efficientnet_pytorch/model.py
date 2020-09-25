@@ -24,12 +24,12 @@ from .utils import (
 
 
 VALID_MODELS = (
-    'dd-b0', 'dd-b1', 'dd-b2', 'dd-b3',
-    'dd-b4', 'dd-b5', 'dd-b6', 'dd-b7',
-    'dd-b8',
+    'efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3',
+    'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7',
+    'efficientnet-b8',
 
-    # Support the construction of 'dd-l2' without pretrained weights
-    'dd-l2'
+    # Support the construction of 'efficientnet-l2' without pretrained weights
+    'efficientnet-l2'
 )
 
 
@@ -50,7 +50,7 @@ class MBConvBlock(nn.Module):
     def __init__(self, block_args, global_params, image_size=None):
         super().__init__()
         self._block_args = block_args
-        self._bn_mom = 1 - global_params.batch_norm_momentum # 1. pytorch's difference from tensorflow
+        self._bn_mom = 1 - global_params.batch_norm_momentum # pytorch's difference from tensorflow
         self._bn_eps = global_params.batch_norm_epsilon
         self.has_se = (self._block_args.se_ratio is not None) and (0 < self._block_args.se_ratio <= 1)
         self.id_skip = block_args.id_skip  # whether to use skip connection and drop connect
@@ -151,6 +151,15 @@ class EfficientNet(nn.Module):
     References:
         [1] https://arxiv.org/abs/1905.11946 (EfficientNet)
 
+    Example:
+        
+        
+        import torch
+        >>> from efficientnet.model import EfficientNet
+        >>> inputs = torch.rand(1, 3, 224, 224)
+        >>> model = EfficientNet.from_pretrained('efficientnet-b0')
+        >>> model.eval()
+        >>> outputs = model(inputs)
     """
 
     def __init__(self, blocks_args=None, global_params=None):
@@ -229,6 +238,17 @@ class EfficientNet(nn.Module):
         Returns:
             Dictionary of last intermediate features
             with reduction levels i in [1, 2, 3, 4, 5].
+            Example:
+                >>> import torch
+                >>> from efficientnet.model import EfficientNet
+                >>> inputs = torch.rand(1, 3, 224, 224)
+                >>> model = EfficientNet.from_pretrained('efficientnet-b0')
+                >>> endpoints = model.extract_endpoints(inputs)
+                >>> print(endpoints['reduction_1'].shape)  # torch.Size([1, 16, 112, 112])
+                >>> print(endpoints['reduction_2'].shape)  # torch.Size([1, 24, 56, 56])
+                >>> print(endpoints['reduction_3'].shape)  # torch.Size([1, 40, 28, 28])
+                >>> print(endpoints['reduction_4'].shape)  # torch.Size([1, 112, 14, 14])
+                >>> print(endpoints['reduction_5'].shape)  # torch.Size([1, 1280, 7, 7])
         """
         endpoints = dict()
 
@@ -260,7 +280,7 @@ class EfficientNet(nn.Module):
 
         Returns:
             Output of the final convolution
-            layer in the dd model.
+            layer in the efficientnet model.
         """
         # Stem
         x = self._swish(self._bn0(self._conv_stem(inputs)))
@@ -299,10 +319,10 @@ class EfficientNet(nn.Module):
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
-        """create an dd model according to name.
+        """create an efficientnet model according to name.
 
         Args:
-            model_name (str): Name for dd.
+            model_name (str): Name for efficientnet.
             in_channels (int): Input data's channel number.
             override_params (other key word params):
                 Params to override model's global_params.
@@ -314,7 +334,7 @@ class EfficientNet(nn.Module):
                     'depth_divisor', 'min_depth'
 
         Returns:
-            An dd model.
+            An efficientnet model.
         """
         cls._check_model_name_is_valid(model_name)
         blocks_args, global_params = get_model_params(model_name, override_params)
@@ -325,10 +345,10 @@ class EfficientNet(nn.Module):
     @classmethod
     def from_pretrained(cls, model_name, weights_path=None, advprop=False,
                         in_channels=3, num_classes=1000, **override_params):
-        """create an dd model according to name.
+        """create an efficientnet model according to name.
 
         Args:
-            model_name (str): Name for dd.
+            model_name (str): Name for efficientnet.
             weights_path (None or str):
                 str: path to pretrained weights file on the local disk.
                 None: use pretrained weights downloaded from the Internet.
@@ -349,7 +369,7 @@ class EfficientNet(nn.Module):
                     'depth_divisor', 'min_depth'
 
         Returns:
-            A pretrained dd model.
+            A pretrained efficientnet model.
         """
         model = cls.from_name(model_name, num_classes=num_classes, **override_params)
         load_pretrained_weights(model, model_name, weights_path=weights_path, load_fc=(num_classes == 1000), advprop=advprop)
@@ -358,10 +378,10 @@ class EfficientNet(nn.Module):
 
     @classmethod
     def get_image_size(cls, model_name):
-        """Get the input image size for a given dd model.
+        """Get the input image size for a given efficientnet model.
 
         Args:
-            model_name (str): Name for dd.
+            model_name (str): Name for efficientnet.
 
         Returns:
             Input image size (resolution).
@@ -375,7 +395,7 @@ class EfficientNet(nn.Module):
         """Validates model name.
 
         Args:
-            model_name (str): Name for dd.
+            model_name (str): Name for efficientnet.
 
         Returns:
             bool: Is a valid name or not.

@@ -5,20 +5,21 @@ import random
 import cv2
 import numpy as np
 
-from keras import applications
-from keras.layers import Dense, Dropout
-from keras.layers import GlobalAveragePooling2D
-from keras import optimizers
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-
-from f1score import WeightedF1Score
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.layers import GlobalAveragePooling2D
+from tensorflow.keras.initializers import TruncatedNormal
+from tensorflow.keras import optimizers
+from tensorflow.keras.callbacks import ReduceLROnPlateau
+from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import tensorflow.keras.backend as K
 import efficientnet.keras as efn
 
 import nsml
 # from nsml.constants import DATASET_PATH, GPU_NUM
 
-DATASET_PATH = '../3. local_test/sample_image/'
-IMSIZE = 300, 300
+DATASET_PATH = '../sample_image'
+IMSIZE = 280, 280
 VAL_RATIO = 0.1
 RANDOM_SEED = 1234
 
@@ -68,14 +69,35 @@ def DataLoad(imdir):
     print(len(img), 'data with label 0-3 loaded!')
     return img, lb
 
+def WB_clahe(img):
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    r, g, b = cv2.split(img)
+    r_avg = cv2.mean(r)[0]
+    g_avg = cv2.mean(g)[0]
+    b_avg = cv2.mean(b)[0]
+
+    # Find the gain of each channel
+    k = (r_avg + g_avg + b_avg) / 3
+    kr = k / r_avg
+    kg = k / g_avg
+    kb = k / b_avg
+
+    r = cv2.addWeighted(src1=r, alpha=kr, src2=0, beta=0, gamma=0)
+    g = cv2.addWeighted(src1=g, alpha=kg, src2=0, beta=0, gamma=0)
+    b = cv2.addWeighted(src1=b, alpha=kb, src2=0, beta=0, gamma=0)
+
+    balance_img = cv2.merge([b, g, r])
+    ba_gr = cv2.cvtColor(balance_img, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    wb_cl = clahe.apply(ba_gr)
+
+    return wb_cl
 
 def ImagePreprocessing(img):
     print('Preprocessing ...')
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16, 16))
+    final = img.copy()
     for i, im, in enumerate(img):
-        # Applying clahe
-        tmp = clahe.apply(im)
-        tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2RGB)
+        tmp = im.copy()
 
         # Cropping
         h, w = tmp.shape[:2]
@@ -85,10 +107,21 @@ def ImagePreprocessing(img):
         # Resizing
         tmp = cv2.resize(tmp, dsize=(IMSIZE[1], IMSIZE[0]), interpolation=cv2.INTER_AREA)
         tmp = tmp / 255.
-        img[i] = tmp
+        resize = tmp
 
-    print(len(img), 'images processed!')
-    return img
+        # clahe + WB
+        claheWB = WB_clahe(resize)
+
+        # contour
+        _, threshold = cv2.threshold(claheWB, 127, 255, 0)
+        contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contour = contours(claheWB)
+
+        concat = np.concatenate([resize, claheWB, contour], axis=-1)
+        final[i] = concat
+
+    print(len(final), 'images processed!')
+    return final
 
 def shuffle_split_data(X, y, train_percent):
     # y label별로 random하게 80%는 train, 20%는 test로
@@ -110,25 +143,94 @@ def shuffle_split_data(X, y, train_percent):
 
     return X_train, Y_train, X_val, Y_val
 
-def EFFI(input_shapes, num_classes):
-    efficient_net = efn.EfficientNetB4(weights='noisy-student', include_top=False, input_shape=(input_shapes[0], input_shapes[1], 1))
-    x = efficient_net.output
+def transform_image(img, ang_range, shear_range, trans_range):
+    '''
+    This function transforms images to generate new images.
+    The function takes in following arguments,
+    1- Image
+    2- ang_range: Range of angles for rotation
+    3- shear_range: Range of values to apply affine transform to
+    4- trans_range: Range of values to apply translations over.
+    A Random uniform distribution is used to generate different parameters for transformation
+    '''
+    # Rotation
+    ang_rot = np.random.uniform(ang_range) - ang_range / 2
+    rows, cols = img.shape
+    Rot_M = cv2.getRotationMatrix2D((cols / 2, rows / 2), ang_rot, 1)
+
+    # Translation
+    tr_x = trans_range * np.random.uniform() - trans_range / 2
+    tr_y = trans_range * np.random.uniform() - trans_range / 2
+    Trans_M = np.float32([[1, 0, tr_x], [0, 1, tr_y]])
+
+    # Shear
+    pts1 = np.float32([[5, 5], [20, 5], [5, 20]])
+    pt1 = 5 + shear_range * np.random.uniform() - shear_range / 2
+    pt2 = 20 + shear_range * np.random.uniform() - shear_range / 2
+    pts2 = np.float32([[pt1, 5], [pt2, pt1], [5, pt2]])
+    shear_M = cv2.getAffineTransform(pts1, pts2)
+
+    img = cv2.warpAffine(img,Rot_M,(cols,rows))
+    img = cv2.warpAffine(img, Trans_M, (cols, rows))
+    img = cv2.warpAffine(img, shear_M, (cols, rows))
+    return img
+
+def f1score(y_true, y_pred): #taken from old keras source code
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    recall = true_positives / (possible_positives + K.epsilon())
+    f1_val = 2*(precision*recall)/(precision+recall+K.epsilon())
+    return f1_val
+
+
+def GetF1score(y, y_pred, target):
+    tp = 0; fp = 0; fn = 0
+    for i, y_hat in enumerate(y_pred):
+        if (y[i] == target) and (y_hat == target):
+            tp += 1
+        if (y[i] == target) and (y_hat != target):
+            fn += 1
+        if (y[i] != target) and (y_hat == target):
+            fp += 1
+    try:
+        f1s = tp / (tp + (fp + fn) / 2)
+    except ZeroDivisionError:
+        f1s = 0
+    return f1s
+
+def weightedf1score(y, y_pred, num_classes):
+    F1scores = []
+    for t in range(num_classes):
+        F1scores.append(GetF1score(y, y_pred, str(t)))
+    WeightedF1score = sum([(i+1)*f1 for i, f1 in enumerate(F1scores)])/10
+    print('Weighted F1Score : {}'.format(WeightedF1score))
+
+def EfficientNet_(input_shapes, num_classes):
+    efficient_net = efn.EfficientNetB4(include_top=False, weights="imagenet")
+    # x = efficient_net.output
+
+    image = Input((IMSIZE[0], IMSIZE[1], 3), name='RGB')
+    x = efficient_net(image).output
     x = GlobalAveragePooling2D()(x)
     x = Dropout(0.5)(x)
-    x = Dense(128, activation='relu')(x)
+    x = Dense(512, activation='relu', kernel_initializer=TruncatedNormal(stddev=0.01))(x)
     x = Dropout(0.5)(x)
-    x = Dense(64, activation='relu')(x)
+    x = Dense(128, activation='relu', kernel_initializer=TruncatedNormal(stddev=0.01))(x)
     x = Dropout(0.5)(x)
-    x = Dense(16, activation='relu')
-    pred = Dense(num_classes, activation="softmax")(x)
-    return pred
+    x = Dense(32, activation='relu', kernel_initializer=TruncatedNormal(stddev=0.01))(x)
+    pred = Dense(num_classes, activation='softmax')(x)
+    model = Model(inputs=efficient_net.input, outputs=pred)
+    return model
 
 
 def ParserArguments(args):
     # Setting Hyperparameters
-    args.add_argument('--epoch', type=int, default=10)          # epoch 수 설정
-    args.add_argument('--batch_size', type=int, default=8)      # batch size 설정
-    args.add_argument('--learning_rate', type=float, default=1e-4)  # learning rate 설정
+    args.add_argument('--epoch', type=int, default=100)          # epoch 수 설정
+    args.add_argument('--batch_size', type=int, default=4)      # batch size 설정
+    args.add_argument('--learning_rate', type=float, default=1e-4)
+    args.add_argument('--learning_rate_decay', type=float, default=1e-5)# learning rate 설정
     args.add_argument('--num_classes', type=int, default=4)     # 분류될 클래스 수는 4개
 
     # DO NOT CHANGE (for nsml)
@@ -138,22 +240,22 @@ def ParserArguments(args):
     args.add_argument('--pause', type=int, default=0, help='model 을 load 할때 1로 설정됩니다.')
 
     config = args.parse_args()
-    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.pause, config.mode
+    return config.epoch, config.batch_size, config.num_classes, config.learning_rate, config.learning_rate_decay, config.pause, config.mode
 
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
 
-    nb_epoch, batch_size, num_classes, learning_rate, ifpause, ifmode = ParserArguments(args)
+    nb_epoch, batch_size, num_classes, learning_rate, learning_rate_decay, ifpause, ifmode = ParserArguments(args)
 
     seed = 1234
     np.random.seed(seed)
 
     """ Model """
     h, w = IMSIZE
-    model = EFFI((h, w), 4)
-    adam = optimizers.Adam(lr=learning_rate, decay=1e-5)
-    model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['categorical_accuracy',WeightedF1Score])
+    model = EfficientNet_((h, w, 3), 4)
+    adam = optimizers.Adam(lr=learning_rate, decay=learning_rate_decay)
+    model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=[f1score])
     bind_model(model)
 
     if ifpause:  ## test mode일 때
@@ -166,7 +268,6 @@ if __name__ == '__main__':
         images = ImagePreprocessing(images)
         ## data 섞기
         images = np.array(images)
-        images = np.expand_dims(images, axis=-1)
         labels = np.array(labels)
         dataset = [[X, Y] for X, Y in zip(images, labels)]
         random.shuffle(dataset)
@@ -174,23 +275,21 @@ if __name__ == '__main__':
         X = np.array([n[0] for n in dataset])
         Y = np.array([n[1] for n in dataset])
 
-        '''
+
         ## Augmentation 예시
         kwargs = dict(
-            rotation_range=180,
-            zoom_range=0.0,
+            rotation_range=10,
+            zoom_range=5,
             width_shift_range=0.0,
-            height_shift_range=0.0,
+            height_shift_range=10.0,
             horizontal_flip=True,
-            vertical_flip=True
+            vertical_flip=False
         )
-        train_datagen = ImageDataGenerator(**kwargs)
-        train_generator = train_datagen.flow(x=X_train, y=Y_train, shuffle= False, batch_size=batch_size, seed=seed)
+
         # then flow and fit_generator....
-        '''
 
         """ Callback """
-        monitor = 'categorical_accuracy'
+        monitor = 'f1score'
         reduce_lr = ReduceLROnPlateau(monitor=monitor, patience=3)
 
         """ Training loop """
@@ -200,6 +299,9 @@ if __name__ == '__main__':
         ## data를 trainin과 validation dataset으로 나누기
         X_train, Y_train, X_val, Y_val = shuffle_split_data(X, Y, 100*(1-VAL_RATIO))
 
+        train_datagen = ImageDataGenerator(**kwargs)
+        train_generator = train_datagen.flow(x=X_train, y=Y_train, shuffle=False, batch_size=batch_size, seed=seed)
+
         t0 = time.time()
         for epoch in range(nb_epoch):
             t1 = time.time()
@@ -208,20 +310,22 @@ if __name__ == '__main__':
             print('check point = {}'.format(epoch))
 
             # for no augmentation case
-            hist = model.fit(X_train, Y_train,
-                             validation_data=(X_val, Y_val),
-                             batch_size=batch_size,
-                             callbacks=[reduce_lr],
-                             shuffle=True
-                             )
+            hist = model.fit_generator(generator=train_generator,
+                                       validation_data=(X_val, Y_val),
+                                       batch_size=batch_size,
+                                       callbacks=[reduce_lr],
+                                       shuffle=True,
+                                       class_weight={0:0.32, 1:1.92, 2:4.17, 3:8.33})
+            pred = model.predict(X_val)
+            score = weightedf1score(pred, Y_val, num_classes)
+
             print(hist.history)
-            train_acc = hist.history['categorical_accuracy'][0]
+            train_acc = hist.history['f1score'][0]
             train_loss = hist.history['loss'][0]
-            val_acc = hist.history['val_categorical_accuracy'][0]
+            val_acc = hist.history['val_f1score'][0]
             val_loss = hist.history['val_loss'][0]
-            train_f1 = hist.history[WeightedF1Score][0]
-            val_f1 = hist.history[WeightedF1Score][0]
             nsml.report(summary=True, step=epoch, epoch_total=nb_epoch, loss=train_loss, acc=train_acc, val_loss=val_loss, val_acc=val_acc)
             nsml.save(epoch)
             print('Training time for one epoch : %.1f' % (time.time() - t1))
+        print('Total training time : %.1f' % (time.time() - t0))
         print('Total training time : %.1f' % (time.time() - t0))

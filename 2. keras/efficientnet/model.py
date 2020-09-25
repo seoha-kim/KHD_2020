@@ -252,7 +252,7 @@ def EfficientNet(width_coefficient,
                  drop_connect_rate=0.2,
                  depth_divisor=8,
                  blocks_args=DEFAULT_BLOCKS_ARGS,
-                 model_name='dd',
+                 model_name='efficientnet',
                  include_top=True,
                  weights='imagenet',
                  input_tensor=None,
@@ -470,7 +470,7 @@ def EfficientNetB0(
 ):
     return EfficientNet(
         1.0, 1.0, 224, 0.2,
-        model_name='dd-b0',
+        model_name='efficientnet-b0',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -489,7 +489,7 @@ def EfficientNetB1(
 ):
     return EfficientNet(
         1.0, 1.1, 240, 0.2,
-        model_name='dd-b1',
+        model_name='efficientnet-b1',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -506,7 +506,7 @@ def EfficientNetB2(include_top=True,
                    **kwargs):
     return EfficientNet(
         1.1, 1.2, 260, 0.3,
-        model_name='dd-b2',
+        model_name='efficientnet-b2',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -523,7 +523,7 @@ def EfficientNetB3(include_top=True,
                    **kwargs):
     return EfficientNet(
         1.2, 1.4, 300, 0.3,
-        model_name='dd-b3',
+        model_name='efficientnet-b3',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -542,7 +542,7 @@ def EfficientNetB4(
 ):
     return EfficientNet(
         1.4, 1.8, 380, 0.4,
-        model_name='dd-b4',
+        model_name='efficientnet-b4',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -561,7 +561,7 @@ def EfficientNetB5(
 ):
     return EfficientNet(
         1.6, 2.2, 456, 0.4,
-        model_name='dd-b5',
+        model_name='efficientnet-b5',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -580,7 +580,7 @@ def EfficientNetB6(
 ):
     return EfficientNet(
         1.8, 2.6, 528, 0.5,
-        model_name='dd-b6',
+        model_name='efficientnet-b6',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -599,7 +599,7 @@ def EfficientNetB7(
 ):
     return EfficientNet(
         2.0, 3.1, 600, 0.5,
-        model_name='dd-b7',
+        model_name='efficientnet-b7',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
@@ -618,7 +618,7 @@ def EfficientNetL2(
 ):
     return EfficientNet(
         4.3, 5.3, 800, 0.5,
-        model_name='dd-l2',
+        model_name='efficientnet-l2',
         include_top=include_top, weights=weights,
         input_tensor=input_tensor, input_shape=input_shape,
         pooling=pooling, classes=classes,
