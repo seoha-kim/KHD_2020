@@ -1,6 +1,5 @@
 # KHD_2020
-image classification for paranasal sinuses data
-with Naver Korea Health Datathon 2020
+Paranasal sinuses data image classification with Naver Korea Health Datathon 2020 (End)
 
 
 # Sources
